@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>SpendWise | Expense Tracker</title>
+
+    <link rel="stylesheet" href="style.css">
+
+    <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.5/dist/ethers.umd.min.js"></script>
+</head>
+
+<body>
+
+    <!-- HEADER -->
+    <header class="navbar">
+        <h2 class="logo">SpendWise<span>.</span></h2>
+
+        <div class="wallet-area">
+            <span id="walletStatus">Wallet not connected</span>
+            <button id="connectBtn">Connect Wallet</button>
+        </div>
+    </header>
+
+
+    <main class="container">
+
+        <!-- WELCOME SECTION -->
+        <section class="welcome">
+            <p class="eyebrow">PERSONAL FINANCE TRACKER</p>
+            <h1>Manage your expenses with ease.</h1>
+            <p>Keep track of where your money goes, one expense at a time.</p>
+        </section>
+
+
+        <!-- SUMMARY CARDS -->
+        <section class="summary">
+
+            <div class="summary-card">
+                <p>Total Spending</p>
+                <h2 id="totalSpent">PKR 0.00</h2>
+            </div>
+
+            <div class="summary-card">
+                <p>Total Expenses</p>
+                <h2 id="expenseCount">0</h2>
+            </div>
+
+        </section>
+
+
+        <!-- ADD EXPENSE -->
+        <section class="panel">
+
+            <h2>Add an Expense</h2>
+            <p class="muted">Enter the details of your expense.</p>
+
+            <form id="expenseForm">
+
+                <div class="form-grid">
+
+                    <div class="form-group">
+                        <label for="amount">Amount (PKR)</label>
+                        <input
+                            type="number"
+                            id="amount"
+                            min="0.01"
+                            step="0.01"
+                            placeholder="e.g. 1500"
+                            required
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <label for="category">Category</label>
+                        <select id="category" required>
+                            <option value="0">Food</option>
+                            <option value="1">Transport</option>
+                            <option value="2">Education</option>
+                            <option value="3">Shopping</option>
+                            <option value="4">Other</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group full-width">
+                        <label for="description">Description</label>
+                        <input
+                            type="text"
+                            id="description"
+                            maxlength="100"
+                            placeholder="e.g. Groceries"
+                            required
+                        >
+                    </div>
+
+                </div>
+
+                <button type="submit" id="addBtn">+ Add Expense</button>
+
+            </form>
+
+            <p id="message" class="message"></p>
+
+        </section>
+
+
+        <!-- CATEGORY BREAKDOWN -->
+        <section class="panel">
+
+            <h2>Spending Breakdown</h2>
+            <p class="muted">See how your expenses are distributed.</p>
+
+            <div id="categoryBreakdown">
+                <p class="empty">Connect your wallet to view your spending.</p>
+            </div>
+
+        </section>
+
+
+        <!-- EXPENSE HISTORY -->
+        <section class="panel history-panel">
+
+            <div class="history-heading">
+                <div>
+                    <h2>Recent Expenses</h2>
+                    <p class="muted">Your recorded transactions.</p>
+                </div>
+
+                <select id="filterCategory">
+                    <option value="all">All Categories</option>
+                    <option value="0">Food</option>
+                    <option value="1">Transport</option>
+                    <option value="2">Education</option>
+                    <option value="3">Shopping</option>
+                    <option value="4">Other</option>
+                </select>
+            </div>
+
+            <div class="table-wrapper">
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Description</th>
+                            <th>Category</th>
+                            <th>Amount</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+
+                    <tbody id="expenseTable">
+                        <tr>
+                            <td colspan="4" class="empty">
+                                Connect your wallet to view expenses.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+
+            </div>
+
+        </section>
+
+    </main>
+
+
+    <footer>
+        <p>SpendWise | Blockchain Expense Tracker</p>
+        <p>Built on the Ethereum Sepolia Test Network</p>
+    </footer>
+
+
+    <script>
+
+        // CONTRACT DETAILS
+
+        // Replace this with your deployed contract address
+        const contractAddress = "0x4aE3F081FEeFF93902b31E5a9bB377E5d32b419f";
+
+        const contractABI = [
+            "function addExpense(uint256 amountPaisa, uint8 category, string description)",
+            "function getExpense(uint256 index) view returns (uint256, uint8, string, uint256)",
+            "function getMyExpenseCount() view returns (uint256)",
+            "function getMyTotalExpenses() view returns (uint256)"
+        ];
+
+        const categoryNames = [
+            "Food",
+            "Transport",
+            "Education",
+            "Shopping",
+            "Other"
+        ];
+
+        let provider;
+        let signer;
+        let contract;
+        let allExpenses = [];
+
+
+        // CONNECT WALLET
+
+        document.getElementById("connectBtn").addEventListener(
+            "click",
+            connectWallet
+        );
+
+        async function connectWallet() {
+
+            try {
+
+                if (!window.ethereum) {
+                    throw new Error("Please install MetaMask first.");
+                }
+
+                if (contractAddress === "PASTE_YOUR_CONTRACT_ADDRESS_HERE") {
+                    throw new Error("Please add your deployed contract address.");
+                }
+
+                await window.ethereum.request({
+                    method: "eth_requestAccounts"
+                });
+
+                provider = new ethers.BrowserProvider(window.ethereum);
+
+                const network = await provider.getNetwork();
+
+                if (network.chainId !== 11155111n) {
+                    throw new Error("Please switch MetaMask to Sepolia.");
+                }
+
+                signer = await provider.getSigner();
+
+                contract = new ethers.Contract(
+                    contractAddress,
+                    contractABI,
+                    signer
+                );
+
+                const address = await signer.getAddress();
+
+                document.getElementById("walletStatus").textContent =
+                    address.slice(0, 6) + "..." + address.slice(-4);
+
+                document.getElementById("connectBtn").textContent =
+                    "Connected";
+
+                showMessage("Wallet connected successfully!", "success");
+
+                await loadExpenses();
+
+            } catch (error) {
+
+                showMessage(
+                    error.shortMessage || error.message,
+                    "error"
+                );
+
+            }
+
+        }
+
+
+        // LOAD EXPENSES FROM BLOCKCHAIN
+
+        async function loadExpenses() {
+
+            if (!contract) return;
+
+            try {
+
+                const count = await contract.getMyExpenseCount();
+
+                const total = await contract.getMyTotalExpenses();
+
+                document.getElementById("expenseCount").textContent =
+                    count.toString();
+
+                document.getElementById("totalSpent").textContent =
+                    "PKR " + ethers.formatUnits(total, 2);
+
+                allExpenses = [];
+
+                for (let i = 0; i < Number(count); i++) {
+
+                    const expense = await contract.getExpense(i);
+
+                    allExpenses.push({
+
+                        amount: expense[0],
+
+                        category: Number(expense[1]),
+
+                        description: expense[2],
+
+                        timestamp: Number(expense[3])
+
+                    });
+
+                }
+
+                displayExpenses();
+
+                displayBreakdown();
+
+            } catch (error) {
+
+                showMessage(
+                    "Could not load expenses: " + error.message,
+                    "error"
+                );
+
+            }
+
+        }
+
+
+        // ADD EXPENSE
+
+        document.getElementById("expenseForm").addEventListener(
+            "submit",
+            async function(event) {
+
+                event.preventDefault();
+
+                if (!contract) {
+                    showMessage("Connect your wallet first.", "error");
+                    return;
+                }
+
+                const amountInput =
+                    document.getElementById("amount").value;
+
+                const category =
+                    Number(document.getElementById("category").value);
+
+                const description =
+                    document.getElementById("description").value.trim();
+
+                if (!/^\d+(\.\d{1,2})?$/.test(amountInput)) {
+                    showMessage(
+                        "Enter an amount with up to 2 decimal places.",
+                        "error"
+                    );
+                    return;
+                }
+
+                if (description.length === 0) {
+                    showMessage("Enter an expense description.", "error");
+                    return;
+                }
+
+                const addButton = document.getElementById("addBtn");
+
+                try {
+
+                    addButton.disabled = true;
+                    addButton.textContent = "Processing...";
+
+                    // Convert PKR into paisa
+                    const amountPaisa =
+                        ethers.parseUnits(amountInput, 2);
+
+                    // Send expense to smart contract
+                    const transaction = await contract.addExpense(
+                        amountPaisa,
+                        category,
+                        description
+                    );
+
+                    showMessage(
+                        "Transaction submitted. Waiting for confirmation...",
+                        "success"
+                    );
+
+                    await transaction.wait();
+
+                    showMessage(
+                        "Expense added successfully! ",
+                        "success",
+                        transaction.hash
+                    );
+
+                    document.getElementById("expenseForm").reset();
+
+                    await loadExpenses();
+
+                } catch (error) {
+
+                    showMessage(
+                        error.shortMessage || error.reason || error.message,
+                        "error"
+                    );
+
+                } finally {
+
+                    addButton.disabled = false;
+                    addButton.textContent = "+ Add Expense";
+
+                }
+
+            }
+        );
+
+
+        // DISPLAY EXPENSE HISTORY
+
+        function displayExpenses() {
+
+            const table = document.getElementById("expenseTable");
+
+            const filter =
+                document.getElementById("filterCategory").value;
+
+            const filteredExpenses = allExpenses.filter(expense => {
+
+                return filter === "all" ||
+                    expense.category === Number(filter);
+
+            });
+
+            if (filteredExpenses.length === 0) {
+
+                table.innerHTML = `
+                    <tr>
+                        <td colspan="4" class="empty">
+                            No expenses found.
+                        </td>
+                    </tr>
+                `;
+
+                return;
+
+            }
+
+            table.innerHTML = filteredExpenses.map(expense => {
+
+                const date = new Date(
+                    expense.timestamp * 1000
+                ).toLocaleDateString();
+
+                return `
+                    <tr>
+                        <td>${escapeHTML(expense.description)}</td>
+                        <td>${categoryNames[expense.category]}</td>
+                        <td>PKR ${ethers.formatUnits(expense.amount, 2)}</td>
+                        <td>${date}</td>
+                    </tr>
+                `;
+
+            }).join("");
+
+        }
+
+
+        // CATEGORY SPENDING BREAKDOWN
+
+        function displayBreakdown() {
+
+            const container =
+                document.getElementById("categoryBreakdown");
+
+            const totals = [0n, 0n, 0n, 0n, 0n];
+
+            allExpenses.forEach(expense => {
+
+                totals[expense.category] += expense.amount;
+
+            });
+
+            const overall = totals.reduce(
+                (sum, amount) => sum + amount,
+                0n
+            );
+
+            if (overall === 0n) {
+
+                container.innerHTML =
+                    '<p class="empty">No expenses recorded yet.</p>';
+
+                return;
+
+            }
+
+            container.innerHTML = totals.map((amount, index) => {
+
+                const percentage = Number(
+                    amount * 10000n / overall
+                ) / 100;
+
+                return `
+                    <div class="category-item">
+
+                        <div class="category-label">
+                            <span>${categoryNames[index]}</span>
+                            <span>PKR ${ethers.formatUnits(amount, 2)}</span>
+                        </div>
+
+                        <div class="progress-track">
+                            <div class="progress-fill"
+                                style="width: ${percentage}%">
+                            </div>
+                        </div>
+
+                    </div>
+                `;
+
+            }).join("");
+
+        }
+
+
+        // FILTER EXPENSES
+
+        document.getElementById("filterCategory").addEventListener(
+            "change",
+            displayExpenses
+        );
+
+
+        // DISPLAY STATUS MESSAGES
+
+        function showMessage(message, type, transactionHash = null) {
+
+            const messageElement =
+                document.getElementById("message");
+
+            messageElement.textContent = message + " ";
+
+            messageElement.className = "message " + type;
+
+            if (transactionHash) {
+
+                const link = document.createElement("a");
+
+                link.href =
+                    "https://sepolia.etherscan.io/tx/" + transactionHash;
+
+                link.target = "_blank";
+
+                link.rel = "noopener";
+
+                link.textContent = "View on Etherscan";
+
+                messageElement.appendChild(link);
+
+            }
+
+        }
+
+
+        // PREVENT HTML IN USER DESCRIPTIONS
+
+        function escapeHTML(value) {
+
+            return value.replace(/[&<>"']/g, character => ({
+
+                "&": "&amp;",
+                "<": "&lt;",
+                ">": "&gt;",
+                '"': "&quot;",
+                "'": "&#39;"
+
+            })[character]);
+
+        }
+
+
+        // REFRESH WHEN WALLET OR NETWORK CHANGES
+
+        if (window.ethereum) {
+
+            window.ethereum.on("accountsChanged", () => {
+                window.location.reload();
+            });
+
+            window.ethereum.on("chainChanged", () => {
+                window.location.reload();
+            });
+
+        }
+
+    </script>
+
+</body>
+
+</html>
